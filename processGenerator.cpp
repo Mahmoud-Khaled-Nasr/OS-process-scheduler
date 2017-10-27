@@ -25,41 +25,37 @@ int main() {
     pid_t schedulerPid;
     pid_t clkPid = fork();
     if (clkPid == -1) {
-        perror("failed to create clk");
+        perror("failed to create clk fork");
     } else if (clkPid == 0) {
         printf("creating clk process\n");
-        execl("/home/mk18/Desktop/Ass1OS/clk.out","clk", NULL);
+        char *params [] = {"clk.out\0",NULL};
+        int result = 0;
+        result = execvp("./clk.out",NULL);
+        if (result == -1) {
+            printf("error can't create clk process\n");
+        } else if (result == 0) {
+            printf("sucess creating clk process\n");
+        }
     }else {
         schedulerPid = fork();
         if (schedulerPid == -1) {
-            perror("failed to create scheduler");
+            perror("failed to create scheduler fork");
         } else if (schedulerPid == 0) {
-                char algorithmChar = algorithm + '0';
-                printf("creating scheduler process\n");
-                int result = 0;
-                result = execl("/home/mk18/Desktop/Ass1OS/scheduler.out", &algorithmChar, NULL);
-                if (result == -1) {
-                    printf("error sch\n");
-                } else if (result == 0) {
-                    printf("sucess\n");
-                }
+            char algoChar = algorithm + '0';
+            char algorithmParam [] = {algoChar,NULL};
+            char *parms[] = {"scheduler.out\0",algorithmParam, NULL};
+            printf("creating scheduler process\n");
+            int result = 0;
+            result = execvp("./scheduler.out", parms);
+            if (result == -1) {
+                printf("error can't create scheduler process\n");
+            } else if (result == 0) {
+                printf("sucess creating scheduler process\n");
             }
         }
-
-    /*
-    else {
-        clkPid = fork();
-        if (clkPid == -1) {
-            perror("failed to create clk");
-        } else if (clkPid == 0) {
-            printf("creating clk process\n");
-            execl("./clk","clk", NULL);
-        }
     }
-*/
+
     // 3-use this function AFTER creating clock process to initialize clock, and initialize MsgQueue
-    printf("i am here\n");
-    sleep(5);
     initClk();
 
     //4-Creating a data structure for process  and  provide it with its parameters
