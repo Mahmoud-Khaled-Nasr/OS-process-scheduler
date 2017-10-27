@@ -1,11 +1,26 @@
 #include "clkUtilities.h"
 #include "queueUtilities.h"
-
+#include <cstdio>
+#include <iostream>
 
 int main(int argc, char* argv[]) {
     initQueue(false);
     initClk();
+
+    switch (*argv[1]){
+        case '1':
+            printf("using HPF\n");
+            break;
+        case '2':
+            printf("using shortest time remainder\n");
+            break;
+        case '3':
+            printf("using RR\n");
+            break;
+    }
+
     
+
     //TODO: implement the scheduler :)
 
 
