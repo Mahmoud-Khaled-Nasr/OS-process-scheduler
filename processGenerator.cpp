@@ -20,6 +20,7 @@ int main() {
     initQueue(true);
     // 1-Ask the user about the chosen scheduling Algorithm and its parameters if exists.
     int algorithm = readAlgorithmFromUser();
+
     // 2-Initiate and create Scheduler and Clock processes.
     pid_t clkPid = createClk();
     pid_t schedulerPid = createScheduler(algorithm);
@@ -31,17 +32,21 @@ int main() {
     //5-Send & Notify the information to  the scheduler at the appropriate time 
     //(only when a process arrives) so that it will be put it in its turn.
     int schedulerStatus;
+    bool sendMassage = false;
     while (! processes.empty()){
         int x = getClk();
         while (!processes.empty()) {
             if (x == processes.front().arrivingTime) {
-                //TODO change the behaviour according to the algorithm
                 Sendmsg(processes.front());
                 processes.pop();
-                if (algorithm == 2) {
-                    kill(schedulerPid, SIGUSR1);
+                if (algorithm == 2){
+                    sendMassage = true;
                 }
             } else {
+                if (algorithm == 2 && sendMassage) {
+                    sendMassage = false;
+                    kill(schedulerPid, SIGUSR1);
+                }
                 break;
             }
         }
@@ -50,7 +55,7 @@ int main() {
     //no more processes, send end of transmission message
     lastSend();
     kill(schedulerPid, SIGUSR1);
-    waitpid(schedulerPid, &schedulerStatus, WNOHANG);
+    //waitpid(schedulerPid, &schedulerStatus, WNOHANG);
     pause();
     //To clear all resources
     ClearResources(0);
@@ -117,16 +122,27 @@ void readProcessFile (char* fileName, int algorihtm){
         printf("can't open the file\n");
         exit(1);
     }
+
     int id, arrivalTime, priority, fullRunTime;
-    while (input >> id){
-        if (id == (int)'#'){
+    while (! input.eof()){
+        input>>id;
+        if (id == 0){
+            input.clear();
             std::string comment;
-            getline(input,comment);
+            getline(input,comment,'\n');
             continue;
         }
         input >> arrivalTime >> fullRunTime>>priority;
         processes.push(processData(id,priority,arrivalTime,fullRunTime, fullRunTime,-1,-1,algorihtm));
     }
+    //FOR TEST
+    /*int length = processes.size();
+    for (int i = 0; i < length; ++i) {
+        processData temp = processes.front();
+        processes.pop();
+        printf("id %d arr %d\n",temp.id, temp.arrivingTime);
+        processes.push(temp);
+    }*/
 }
 
 

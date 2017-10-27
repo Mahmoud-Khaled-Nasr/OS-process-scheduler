@@ -1,11 +1,14 @@
 #include "clkUtilities.h"
 #include "queueUtilities.h"
 #include <cstdio>
-#include <iostream>
+#include <fstream>
 #include <queue>
 
 std::queue <processData> recievedProcesses;
 bool processGeneratorFinish = false;
+pid_t currentProcessId = -1;
+std::priority_queue <processData> processes;
+bool processRunning = false;
 
 void newProcessHandler (int signal);
 void HPFScheduler (std::priority_queue <processData> & processes);
@@ -14,24 +17,32 @@ void createNewProcessSRT();
 void deadProcess(int signal);
 void saveDeadProcessData (processData process);
 int main(int argc, char* argv[]) {
+
     initQueue(false);
     initClk();
-    signal(SIGUSR1,newProcessHandler);
+
     switch (*argv[1]){
-        case '1':
+        case '1': {
             printf("using HPF\n");
-            std::priority_queue <processData> HPFQueue;
+            std::priority_queue<processData> HPFQueue;
             break;
-        case '2':
+        }
+        case '2': {
             printf("using shortest time remainder\n");
-            signal(SIGCHLD,deadProcess);
+            signal(SIGUSR1,newProcessHandler);
+            signal(SIGCHLD, deadProcess);
             SRTScheduler();
             //TODO claculate the calculations
             break;
-        case '3':
+        }
+        case '3': {
             printf("using RR\n");
-            std::priority_queue <processData> RRQueue;
+            std::priority_queue<processData> RRQueue;
             break;
+        }
+        default: {
+            printf("wrong arguments\n");
+        }
     }
 
 
@@ -64,12 +75,17 @@ void HPFScheduler (std::priority_queue <processData> & processes){
     while ()*/
 }
 
-pid_t currentProcessId;
-std::priority_queue <processData> processes;
-bool processRunning = false;
 void SRTScheduler (){
-    while (! processGeneratorFinish && ! recievedProcesses.empty() && ! processes.empty()){
+    std::ofstream logFile;
+    logFile.open("scheduler.log");
+    if (! logFile.is_open()){
+        printf("can't open log file\n");
+    }
+    //printf("i am before the while time %d\n",getClk());
+    while (! processGeneratorFinish || ! recievedProcesses.empty() || ! processes.empty()){
         //currentTime = getClk();
+        //FOR TEST
+        printf("i am in the while time %d",getClk());
         int processStatus;
         while (! recievedProcesses.empty()){
             processData temp = recievedProcesses.front();
@@ -79,23 +95,30 @@ void SRTScheduler (){
         if (! processes.empty()){
             //run the process
             if (processes.top().processId == -1){
-                processes.top().finsihTime = getClk();
+                //printing im the log file
+                logFile << "At time "<< getClk()<< " process " << processes.top().id << " started arr "
+                        << processes.top().arrivingTime << " total "<< processes.top().fullRunningTime <<" remain "
+                        << processes.top().remainingTime <<" wait " << getClk() - processes.top().arrivingTime << std::endl;
                 //Create new process
                 createNewProcessSRT();
             } else {
                 currentProcessId = processes.top().processId;
                 kill(currentProcessId,SIGCONT);
             }
-            waitpid(currentProcessId, &processStatus, WNOHANG);
-            pause();
+            //waitpid(currentProcessId, &processStatus, WNOHANG);
         }
+        pause();
     }
+
+    printf("i am after the loop\n");
 }
 
 void deadProcess (int signal){
-    processes.top().finsihTime = getClk();
-    saveDeadProcessData(processes.top());
+    processData temp = processes.top();
     processes.pop();
+    temp.finsihTime = getClk();
+    saveDeadProcessData(temp);
+    currentProcessId = -1;
 }
 
 void saveDeadProcessData (processData process){
@@ -103,7 +126,9 @@ void saveDeadProcessData (processData process){
 }
 
 void createNewProcessSRT(){
-    processes.top().processId = currentProcessId = fork();
+    processData temp = processes.top();
+    temp.processId = currentProcessId = fork();
+    processes.push(temp);
     if (currentProcessId == -1 ){
         perror("can't fork new process\n");
     }else if (currentProcessId == 0){
@@ -121,17 +146,21 @@ void createNewProcessSRT(){
 
 void newProcessHandler (int signal){
     processData temp;
-    int result = Recmsg(temp);
-    if (result == -1){
-        printf("Can't recieve massage for process generator");
-    } else if (result == 0) {
-        recievedProcesses.push(temp);
-        if (currentProcessId != -1){
-            kill(currentProcessId, SIGTSTP);
-            processRunning = false;
+    int result;
+    do {
+        result = Recmsg(temp);
+        if (result == -1) {
+            printf("Can't recieve massage for process generator");
+        } else if (result == 0) {
+            recievedProcesses.push(temp);
+            if (currentProcessId != -1) {
+                kill(currentProcessId, SIGTSTP);
+                processRunning = false;
+            }
+            printf("received id %d arr time %d and clk %d",temp.id,temp.arrivingTime,getClk());
+        } else if (result == 1) {
+            processGeneratorFinish = true;
         }
-    } else if (result == 1){
-        processGeneratorFinish = true;
-    }
+    }while (result != -1);
     return;
 }

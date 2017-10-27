@@ -24,16 +24,17 @@ struct processData {
         started,finished,stoped,resumed,notstarted
     };
 
-    int id, priority, fullRunningTime, arrivingTime, remainingTime, finsihTime, waitingTime, currentUsedAlgo,;
+    int id, priority, fullRunningTime, arrivingTime, remainingTime, finsihTime, waitingTime, currentUsedAlgo;
     processStat stat;
     pid_t processId;
     processData(){}
     processData(int id, int priority, int arrivingTime, int fullRunningTime,int remainingTime,int finsihTime
             ,int waitingTime, int algo)
             :id(id),priority(priority), arrivingTime(arrivingTime),fullRunningTime(fullRunningTime),
-             remainingTime(remainingTime),finsihTime(finsihTime),waitingTime(waitingTime),stat(processStat::notstarted)
-            ,processId(-1),currentUsedAlgo(algo)
-    {}
+             remainingTime(remainingTime),finsihTime(finsihTime),waitingTime(waitingTime),processId(-1),currentUsedAlgo(algo)
+    {
+        stat= notstarted;
+    }
 
     bool operator < (const processData &b) const {
         if (currentUsedAlgo == 1)
