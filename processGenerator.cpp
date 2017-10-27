@@ -13,7 +13,7 @@ void ClearResources(int);
 int readAlgorithmFromUser ();
 pid_t createClk ();
 pid_t createScheduler(int algorithm);
-void readProcessFile (char* fileName);
+void readProcessFile (char* fileName, int algorithm);
 
 int main() {
 
@@ -27,7 +27,7 @@ int main() {
     initClk();
 
     //4-Creating a data structure for process  and  provide it with its parameters
-    readProcessFile("processes.txt");
+    readProcessFile("processes.txt",algorithm);
     //5-Send & Notify the information to  the scheduler at the appropriate time 
     //(only when a process arrives) so that it will be put it in its turn.
     int schedulerStatus;
@@ -38,7 +38,9 @@ int main() {
                 //TODO change the behaviour according to the algorithm
                 Sendmsg(processes.front());
                 processes.pop();
-                kill(schedulerPid, SIGUSR1);
+                if (algorithm == 2) {
+                    kill(schedulerPid, SIGUSR1);
+                }
             } else {
                 break;
             }
@@ -47,6 +49,7 @@ int main() {
 
     //no more processes, send end of transmission message
     lastSend();
+    kill(schedulerPid, SIGUSR1);
     waitpid(schedulerPid, &schedulerStatus, WNOHANG);
     pause();
     //To clear all resources
@@ -107,7 +110,7 @@ pid_t createScheduler(int algorithm){
     }
 }
 
-void readProcessFile (char* fileName){
+void readProcessFile (char* fileName, int algorihtm){
     std::ifstream input;
     input.open(fileName);
     if (! input.is_open()){
@@ -122,7 +125,7 @@ void readProcessFile (char* fileName){
             continue;
         }
         input >> arrivalTime >> fullRunTime>>priority;
-        processes.push(processData(id,priority,arrivalTime,fullRunTime, fullRunTime,-1,-1));
+        processes.push(processData(id,priority,arrivalTime,fullRunTime, fullRunTime,-1,-1,algorihtm));
     }
 }
 

@@ -19,13 +19,33 @@ int qid;
 //===============================
 
 struct processData {
-    int id, priority, fullRunningTime, arrivingTime,
-           remainingTime, finsihTime, waitingTime;
+
+    enum processStat {
+        started,finished,stoped,resumed,notstarted
+    };
+
+    int id, priority, fullRunningTime, arrivingTime, remainingTime, finsihTime, waitingTime, currentUsedAlgo,;
+    processStat stat;
+    pid_t processId;
     processData(){}
-    processData(int id, int priority, int arrivingTime, int fullRunningTime,int remainingTime,int finsihTime,int waitingTime)
+    processData(int id, int priority, int arrivingTime, int fullRunningTime,int remainingTime,int finsihTime
+            ,int waitingTime, int algo)
             :id(id),priority(priority), arrivingTime(arrivingTime),fullRunningTime(fullRunningTime),
-             remainingTime(remainingTime),finsihTime(finsihTime),waitingTime(waitingTime)
+             remainingTime(remainingTime),finsihTime(finsihTime),waitingTime(waitingTime),stat(processStat::notstarted)
+            ,processId(-1),currentUsedAlgo(algo)
     {}
+
+    bool operator < (const processData &b) const {
+        if (currentUsedAlgo == 1)
+            return priority < b.priority;
+        else if (currentUsedAlgo == 2) {
+            if (remainingTime == b.remainingTime) {
+                return id > b.id;
+            } else {
+                return remainingTime > b.remainingTime;
+            }
+        }
+    }
 };
 
 struct messagebuffer
@@ -67,6 +87,10 @@ int Sendmsg(struct processData pData) {
   return msgsnd(qid, &msg, sizeof(msg)-sizeof(long), !IPC_NOWAIT);
 }
 
+
+//return -1 when failure or no processes available
+//      0 when on sccessfull process recive
+//      1 when lastSend
 int Recmsg( processData &pData) {
   struct messagebuffer msg;
   msg.mtype = 1L;
