@@ -13,13 +13,13 @@ int main(int argc, char* argv[]) {
             break;
         case '2':
             printf("using shortest time remainder\n");
-            break;
+            break; 
         case '3':
             printf("using RR\n");
             break;
     }
 
-    
+
 
     //TODO: implement the scheduler :)
 
