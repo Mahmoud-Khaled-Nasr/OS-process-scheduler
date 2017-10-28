@@ -24,7 +24,7 @@ struct processData {
         started,finished,stoped,resumed,notstarted
     };
 
-    int id, priority, fullRunningTime, arrivingTime, remainingTime, finsihTime, waitingTime, currentUsedAlgo;
+    int id, priority, fullRunningTime, arrivingTime, remainingTime, finsihTime, waitingTime, currentUsedAlgo, startRunningTime;
     processStat stat;
     pid_t processId;
     processData(){ id = -1; }

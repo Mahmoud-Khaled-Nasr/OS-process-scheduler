@@ -6,6 +6,8 @@
 #include <fstream>
 #include <queue>
 
+#define FILE_NAME "scheduler.log"
+
 std::queue <processData> recievedProcesses;
 bool processGeneratorFinish = false;
 pid_t currentProcessId = -1;
@@ -24,12 +26,12 @@ int main(int argc, char* argv[]) {
     initQueue(false);
     initClk();
     //initializing the log file
-    logFile.open("scheduler.log");
+    logFile.open(FILE_NAME);
     if (! logFile.is_open()){
         printf("can't open log file\n");
         exit(1);
     }
-
+    logFile.close();
     switch (*argv[1]){
         case '1': {
             printf("using HPF\n");
@@ -95,29 +97,42 @@ void SRTScheduler (){
             if (temp.processId == -1){
                 //printing in the log file
                 temp.waitingTime = getClk() - temp.arrivingTime;
+                temp.startRunningTime= getClk();
+                logFile.open(FILE_NAME, std::fstream::app);
+                if (! logFile.is_open()){
+                    printf("can't open the file\n");
+                    exit(1);
+                }
                 logFile << "At time "<< getClk()<< " process " << temp.id << " started arr "
                         << temp.arrivingTime << " total "<< temp.fullRunningTime <<" remain "
                         << temp.remainingTime <<" wait " << temp.waitingTime << std::endl;
+                logFile.close();
                 processes.pop();
                 processes.push(temp);
                 //Create new process
                 createNewProcessSRT();
             } else {
                 currentProcessId = temp.processId;
+                temp.startRunningTime = getClk();
+                processes.pop();
+                processes.push(temp);
                 kill(currentProcessId,SIGCONT);
+                logFile.open(FILE_NAME, std::fstream::app);
+                if (! logFile.is_open()){
+                    printf("can't open the file\n");
+                    exit(1);
+                }
                 logFile << "At time "<< getClk()<< " process " << temp.id << " resumed arr "
                         << temp.arrivingTime << " total "<< temp.fullRunningTime <<" remain "
                         << temp.remainingTime <<" wait " << getClk() - temp.arrivingTime << std::endl;
+                logFile.close();
             }
-            //waitpid(currentProcessId, &processStatus, WNOHANG);
         }
         if (! processGeneratorFinish || ! recievedProcesses.empty() || ! processes.empty())
         {
             pause();
         }
     }
-
-    printf("i am after the loop\n");
 }
 
 void deadProcess (int signal){
@@ -136,9 +151,15 @@ void deadProcess (int signal){
         temp.finsihTime = getClk();
         temp.remainingTime = 0;
         saveDeadProcessData(temp);
+        logFile.open(FILE_NAME, std::fstream::app);
+        if (! logFile.is_open()){
+            printf("can't open the file\n");
+            exit(1);
+        }
         logFile << "At time " << getClk() << " process " << temp.id << " finished arr "
                 << temp.arrivingTime << " total " << temp.fullRunningTime << " remain "
                 << temp.remainingTime << " wait " << temp.waitingTime << std::endl;
+        logFile.close();
         currentProcessId = -1;
     } else if (triggeredProcessId == 0) {
         printf("the process %d stopped or resummed \n",currentProcessId);
@@ -159,7 +180,7 @@ void createNewProcessSRT(){
         perror("can't fork new process\n");
     }else if (currentProcessId == 0){
         //TODO send the parameters to the process
-        char* remainingTimeParam = createProcessPrameters(temp.arrivingTime);
+        char* remainingTimeParam = createProcessPrameters(temp.remainingTime);
         char* idParam = createProcessPrameters(temp.id);
         char* arrivingTimeParam =createProcessPrameters(temp.arrivingTime);
         char* fullRunningTimeParam = createProcessPrameters(temp.fullRunningTime);
@@ -191,7 +212,20 @@ void newProcessHandler (int signal){
             recievedProcesses.push(temp);
             printf("received id %d arr time %d and clk %d\n", temp.id, temp.arrivingTime, getClk());
             if (currentProcessId != -1) {
-                kill(currentProcessId, SIGSTOP);
+                kill(currentProcessId, SIGTSTP);
+                processData temp = processes.top();
+                processes.pop();
+                logFile.open(FILE_NAME, std::fstream::app);
+                if (! logFile.is_open()){
+                    printf("can't open the file\n");
+                    exit(1);
+                }
+                temp.remainingTime = temp.remainingTime - (getClk() - temp.startRunningTime);
+                processes.push(temp);
+                logFile << "At time "<< getClk()<< " process " << temp.id << " stopped arr "
+                    << temp.arrivingTime << " total "<< temp.fullRunningTime <<" remain "
+                    << temp.remainingTime <<" wait " << temp.waitingTime << std::endl;
+                logFile.close();
                 processRunning = false;
             }
         }

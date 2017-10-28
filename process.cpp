@@ -2,6 +2,9 @@
 #include <unistd.h>
 #include <string>
 #include "clkUtilities.h"
+#include <fstream>
+
+#define FILE_NAME "scheduler.log"
 
 /* Modify this file as needed*/
 int remainingtime =0;
@@ -13,7 +16,7 @@ int main(int agrc, char* argv[]) {
 
     //if you need to use the emulated clock uncomment the following line
     initClk();
-    signal(SIGSTOP,stopHandler);
+    signal(SIGTSTP,stopHandler);
     if (agrc < 3){
         printf("process with wrong number of parameters\n");
         exit(1);
@@ -28,14 +31,12 @@ int main(int agrc, char* argv[]) {
        sleep(STEP_TIME);
        remainingtime--;
     }
-    printf("process terminating \n");
+    printf("process of id %d terminating \n",id);
     //if you need to use the emulated clock uncomment the following line
     destroyClk(false);
     return 0;
 }
 
-void stopHandler(int signal){
-    logFile << "At time "<< getClk()<< " process " << id << " stopped arr "
-            << arrivingTime << " total "<< fullRunningTime <<" remain "
-            << remainingtime <<" wait " << waitingTime << std::endl;
+void stopHandler(int signal) {
+    printf("i am %d stoping\n", id);
 }
