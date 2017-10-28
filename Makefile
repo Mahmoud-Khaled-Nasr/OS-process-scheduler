@@ -3,7 +3,7 @@ build:
 	g++ scheduler.cpp -o scheduler.out
 	g++ FilesGenerator.cpp -o FilesGenerator.out
 	g++ processGenerator.cpp -o processGenerator.out
-
+	g++ process.cpp -o process.out
 clean:
 	rm -f *.out  processes.txt
 	ipcrm -M 300
