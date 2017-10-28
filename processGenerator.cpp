@@ -1,3 +1,4 @@
+#pragma once
 #include "clkUtilities.h"
 #include "queueUtilities.h"
 #include <unistd.h>

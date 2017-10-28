@@ -1,4 +1,3 @@
-
 #include <unistd.h>
 #include <string>
 #include "clkUtilities.h"
@@ -23,10 +22,10 @@ int main(int agrc, char* argv[]) {
     }
     remainingtime = std::atoi(argv[1]);
     id = std::atoi(argv[2]);
-    printf("process of id %d remaining time is %d\n", id, remainingtime);
     arrivingTime= std::atoi(argv[3]);
     fullRunningTime= std::atoi(argv[4]);
     waitingTime = std::atoi(argv[5]);
+    printf("process of id %d remaining time is %d\n", id, remainingtime);
     while(remainingtime>0) {
        sleep(STEP_TIME);
        remainingtime--;

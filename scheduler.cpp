@@ -1,5 +1,6 @@
 #include "clkUtilities.h"
 #include "queueUtilities.h"
+#include "HPF.h"
 #include <cstdio>
 #include <cstring>
 #include <string>
@@ -13,9 +14,9 @@ bool processGeneratorFinish = false;
 pid_t currentProcessId = -1;
 std::priority_queue <processData> processes;
 bool processRunning = false;
+char currentAlgorithm;
 
 void newProcessHandler (int signal);
-void HPFScheduler (std::priority_queue <processData> & processes);
 void SRTScheduler ();
 void createNewProcessSRT();
 void deadProcess(int signal);
@@ -23,6 +24,7 @@ void saveDeadProcessData (processData process);
 char* createProcessPrameters (int value);
 int main(int argc, char* argv[]) {
 
+    currentAlgorithm = *argv[1];
     initQueue(false);
     initClk();
     //initializing the log file
@@ -35,7 +37,7 @@ int main(int argc, char* argv[]) {
     switch (*argv[1]){
         case '1': {
             printf("using HPF\n");
-            std::priority_queue<processData> HPFQueue;
+            HPF HPFScheduler;
             break;
         }
         case '2': {
@@ -55,30 +57,13 @@ int main(int argc, char* argv[]) {
             printf("wrong arguments\n");
         }
     }
-
-
-
-    //TODO: implement the scheduler :)
-
-
-
     printf("scheduler is exiting\n");
     return 0;
-}
-
-void HPFScheduler (std::priority_queue <processData> & processes){
-    /*bool runningProcess = false;
-    pid_t currentProcessId;
-    processData temp;
-    int currentTime, previousTime;
-    currentTime = previousTime = getClk();
-    while ()*/
 }
 
 void SRTScheduler (){
     //printf("i am before the while time %d\n",getClk());
     while (! processGeneratorFinish || ! recievedProcesses.empty() || ! processes.empty()){
-        //currentTime = getClk();
         //FOR TEST
         printf("i am in the while time %d\n",getClk());
         int processStatus;
@@ -135,7 +120,7 @@ void SRTScheduler (){
     }
 }
 
-void deadProcess (int signal){
+void deadProcess (int signal) {
 
     int status, triggeredProcessId;
     triggeredProcessId = waitpid(currentProcessId, &status, WNOHANG);
@@ -143,7 +128,8 @@ void deadProcess (int signal){
         processData temp = processes.top();
         processes.pop();
         if (temp.processId != currentProcessId) {
-            printf("killing something wrong queue process id = %d id %d currentProcessId %d\n", temp.processId, temp.id,
+            printf("killing something wrong queue process id = %d id %d currentProcessId %d\n", temp.processId,
+                   temp.id,
                    currentProcessId);
         } else {
             printf("I am doing the right thing \n");
@@ -152,7 +138,7 @@ void deadProcess (int signal){
         temp.remainingTime = 0;
         saveDeadProcessData(temp);
         logFile.open(FILE_NAME, std::fstream::app);
-        if (! logFile.is_open()){
+        if (!logFile.is_open()) {
             printf("can't open the file\n");
             exit(1);
         }
@@ -162,10 +148,11 @@ void deadProcess (int signal){
         logFile.close();
         currentProcessId = -1;
     } else if (triggeredProcessId == 0) {
-        printf("the process %d stopped or resummed \n",currentProcessId);
+        printf("the process %d stopped or resummed \n", currentProcessId);
     } else {
-        printf("something is wrong in the deadhandler %d\n",triggeredProcessId);
+        printf("something is wrong in the deadhandler %d\n", triggeredProcessId);
     }
+
 }
 
 void saveDeadProcessData (processData process){
