@@ -227,6 +227,7 @@ void newProcessHandler (int signal){
                     << temp.remainingTime <<" wait " << temp.waitingTime << std::endl;
                 logFile.close();
                 processRunning = false;
+                currentProcessId = -1;
             }
         }
         result = Recmsg(temp);
