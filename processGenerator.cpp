@@ -20,13 +20,11 @@ int main() {
     initQueue(true);
     // 1-Ask the user about the chosen scheduling Algorithm and its parameters if exists.
     int algorithm = readAlgorithmFromUser();
-
     // 2-Initiate and create Scheduler and Clock processes.
     pid_t clkPid = createClk();
     pid_t schedulerPid = createScheduler(algorithm);
     // 3-use this function AFTER creating clock process to initialize clock, and initialize MsgQueue
     initClk();
-
     //4-Creating a data structure for process  and  provide it with its parameters
     readProcessFile("processes.txt",algorithm);
     //5-Send & Notify the information to  the scheduler at the appropriate time 
@@ -34,6 +32,7 @@ int main() {
     int schedulerStatus;
     bool sendMassage = false;
     while (! processes.empty()){
+        sleep(1);
         int x = getClk();
         while (!processes.empty()) {
             if (x == processes.front().arrivingTime) {
@@ -46,6 +45,8 @@ int main() {
                 if (algorithm == 2 && sendMassage) {
                     sendMassage = false;
                     kill(schedulerPid, SIGUSR1);
+                    printf("send the receive signal at %d\n",x);
+                    sleep(1);
                 }
                 break;
             }
@@ -53,10 +54,17 @@ int main() {
     }
 
     //no more processes, send end of transmission message
+    sleep(1);
     lastSend();
     kill(schedulerPid, SIGUSR1);
-    //waitpid(schedulerPid, &schedulerStatus, WNOHANG);
-    pause();
+    printf("send the lastSend\n");
+    //the process generator is waiting until the scheduler finishes its work and terminates to clear resources
+    int tempPid;
+    do {
+        tempPid = waitpid(schedulerPid, &schedulerStatus, WNOHANG);
+        sleep(1);
+    }while (tempPid != schedulerPid);
+    printf("the process generator is terminating\n");
     //To clear all resources
     ClearResources(0);
     return 0;

@@ -27,7 +27,7 @@ struct processData {
     int id, priority, fullRunningTime, arrivingTime, remainingTime, finsihTime, waitingTime, currentUsedAlgo;
     processStat stat;
     pid_t processId;
-    processData(){}
+    processData(){ id = -1; }
     processData(int id, int priority, int arrivingTime, int fullRunningTime,int remainingTime,int finsihTime
             ,int waitingTime, int algo)
             :id(id),priority(priority), arrivingTime(arrivingTime),fullRunningTime(fullRunningTime),

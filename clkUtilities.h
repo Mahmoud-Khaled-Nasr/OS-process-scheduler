@@ -11,10 +11,12 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <signal.h>
+#include <fstream>
 
 #define SHKEY 300
+#define STEP_TIME 5
 
-
+std::ofstream logFile;
 ///==============================
 //don't mess with this variable//
 int* shmaddr;                  //
@@ -42,7 +44,7 @@ void initClk()
   	{
           //Make sure that the Clock exists
         printf("wait, Clock not initialized yet\n");
-        sleep(1);
+        sleep(STEP_TIME);
         shmid = shmget(SHKEY, 4, 0444);
   	}
 
