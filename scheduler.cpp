@@ -1,27 +1,40 @@
-#include "clkUtilities.h"
 #include "queueUtilities.h"
-#include "HPF.h"
+#include "clkUtilities.h"
 #include <cstdio>
 #include <cstring>
 #include <string>
 #include <fstream>
 #include <queue>
 
+
 #define FILE_NAME "scheduler.log"
 
+std::ofstream logFile;
 std::queue <processData> recievedProcesses;
 bool processGeneratorFinish = false;
 pid_t currentProcessId = -1;
 std::priority_queue <processData> processes;
 bool processRunning = false;
 char currentAlgorithm;
+processData previousProcessHPF;
 
-void newProcessHandler (int signal);
-void SRTScheduler ();
-void createNewProcessSRT();
-void deadProcess(int signal);
+//utility functions
 void saveDeadProcessData (processData process);
 char* createProcessPrameters (int value);
+
+//SRT functions
+void newProcessHandlerSRT(int signal);
+void SRTScheduler ();
+void createNewProcessSRT();
+void deadProcessSRT(int signal);
+
+//HPF functions
+void HPFScheduler ();
+void getNewProcessesFromProcessGeneratorHPF();
+void createNewProcessHPF();
+void logNewProcessHPF(processData process);
+void deadChildHandlerHPF(int signal);
+
 int main(int argc, char* argv[]) {
 
     currentAlgorithm = *argv[1];
@@ -36,14 +49,15 @@ int main(int argc, char* argv[]) {
     logFile.close();
     switch (*argv[1]){
         case '1': {
-            printf("using HPF\n");
-            HPF HPFScheduler;
+            signal(SIGCHLD, deadChildHandlerHPF);
+            HPFScheduler();
+            //TODO claculate the calculations
             break;
         }
         case '2': {
             printf("using shortest time remainder\n");
-            signal(SIGUSR1,newProcessHandler);
-            signal(SIGCHLD, deadProcess);
+            signal(SIGUSR1, newProcessHandlerSRT);
+            signal(SIGCHLD, deadProcessSRT);
             SRTScheduler();
             //TODO claculate the calculations
             break;
@@ -120,7 +134,7 @@ void SRTScheduler (){
     }
 }
 
-void deadProcess (int signal) {
+void deadProcessSRT(int signal) {
 
     int status, triggeredProcessId;
     triggeredProcessId = waitpid(currentProcessId, &status, WNOHANG);
@@ -185,7 +199,7 @@ void createNewProcessSRT(){
     processes.push(temp);
 }
 
-void newProcessHandler (int signal){
+void newProcessHandlerSRT(int signal){
     processData temp;
     printf("starting the new process handler\n");
     int result=2;
@@ -229,3 +243,115 @@ char* createProcessPrameters (int value){
     valueParam[valueString.length()]='\0';
     return valueParam;
 }
+
+//TODO get the finishing time value when the process ends
+void HPFScheduler(){
+    while (! processGeneratorFinish || !processes.empty()){
+        processData process;
+        int result = Recmsg(process);
+        if (result == 0) {
+            if (process.id != previousProcessHPF.id) {
+                processes.push(process);
+                previousProcessHPF = process;
+                printf("received id %d priority %d arr time %d and clk %d \n", process.id, process.priority,
+                       process.arrivingTime, getClk());
+            }
+            getNewProcessesFromProcessGeneratorHPF();
+        } else if (result == 1){
+            processGeneratorFinish = true;
+            printf("lastSend recieved\n");
+        }
+        if (! processes.empty()) {
+            createNewProcessHPF();
+            pause();
+        }
+    }
+}
+
+void getNewProcessesFromProcessGeneratorHPF() {
+    processData temp;
+    printf("starting the HPF new process handler\n");
+    int result=2;
+    do {
+        if (result == -1) {
+            printf("Can't recieve massage for process generator or no massages to be received\n");
+        } else if (result == 1) {
+            processGeneratorFinish = true;
+            printf("lastSend recieved\n");
+        } else if (result == 0 && ! processGeneratorFinish) {
+            if (temp.id != previousProcessHPF.id) {
+                printf("received id %d priority %d arr time %d and clk %d \n", temp.id, temp.priority,
+                       temp.arrivingTime, getClk());
+                processes.push(temp);
+                previousProcessHPF = temp;
+            }
+        }
+        result = Recmsg(temp);
+    }while (result != -1);
+    printf("ending the HPF new process handler\n");
+    return;
+}
+
+void createNewProcessHPF(){
+    processRunning = true;
+    processData temp = processes.top();
+    processes.pop();
+    currentProcessId = fork();
+    if (currentProcessId == -1 ){
+        perror("can't fork new process\n");
+    }else if (currentProcessId == 0){
+        char* remainingTimeParam = createProcessPrameters(temp.remainingTime);
+        char* idParam = createProcessPrameters(temp.id);
+        char* arrivingTimeParam =createProcessPrameters(temp.arrivingTime);
+        char* fullRunningTimeParam = createProcessPrameters(temp.fullRunningTime);
+        char* waitingTimeParam = createProcessPrameters(temp.waitingTime);
+        char* parms []={"process.out\0",remainingTimeParam, idParam, arrivingTimeParam, fullRunningTimeParam, waitingTimeParam, NULL};
+        int result = 0;
+        result = execvp("./process.out", parms);
+        if (result == -1) {
+            perror("error can't exec the new process\n");
+        } else if (result == 0) {
+            perror("sucess exec the new process\n");
+        }
+    }
+    temp.processId = currentProcessId;
+    temp.currentUsedAlgo = 1;
+    temp.startRunningTime = getClk();
+    temp.waitingTime = getClk() - temp.arrivingTime;
+    processes.push(temp);
+    logNewProcessHPF(temp);
+    printf("starting new process id %d, priority %d, arr %d, clk %d\n",temp.id,temp.priority,temp.arrivingTime,getClk());
+}
+
+void logNewProcessHPF(processData process) {
+    logFile.open(FILE_NAME, std::fstream::app);
+    if (! logFile.is_open()){
+        printf("can't open log file\n");
+        exit(1);
+    }
+    logFile << "At time "<< getClk()<< " process " << process.id << " started arr "
+            << process.arrivingTime << " total "<< process.fullRunningTime <<" remain "
+            << process.remainingTime <<" wait " << process.waitingTime << std::endl;
+    logFile.close();
+}
+
+void deadChildHandlerHPF(int signal) {
+    processRunning = false;
+    processData process = processes.top();
+    processes.pop();
+    printf("process id %d terminated clk %d\n",process.id, getClk());
+    process.remainingTime=0;
+    process.finsihTime=getClk();
+    logFile.open(FILE_NAME, std::fstream::app);
+    if (! logFile.is_open()){
+        printf("can't open log file\n");
+        exit(1);
+    }
+    logFile << "At time " << getClk() << " process " << process.id << " finished arr "
+            << process.arrivingTime << " total " << process.fullRunningTime << " remain "
+            << process.remainingTime << " wait " << process.waitingTime << std::endl;
+    logFile.close();
+    //TODO save the data needed for the calculations
+    //saveDeadProcessData(process);
+}
+

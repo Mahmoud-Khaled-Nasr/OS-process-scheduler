@@ -30,7 +30,7 @@ int main(int agrc, char* argv[]) {
        sleep(STEP_TIME);
        remainingtime--;
     }
-    printf("process of id %d terminating \n",id);
+    printf("process of id %d terminating at %d\n",id, getClk());
     //if you need to use the emulated clock uncomment the following line
     destroyClk(false);
     return 0;

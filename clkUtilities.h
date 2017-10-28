@@ -1,4 +1,5 @@
-#pragma once
+#ifndef __CLK_UTILITY_H_INCLUDED__
+#define __CLK_UTILITY_H_INCLUDED__
 //You probably Don't Need to update anything here
 #include <stdio.h>      //if you don't use scanf/printf change this include
 #include <sys/types.h>
@@ -16,7 +17,6 @@
 #define SHKEY 300
 #define STEP_TIME 5
 
-std::ofstream logFile;
 ///==============================
 //don't mess with this variable//
 int* shmaddr;                  //
@@ -69,3 +69,4 @@ void destroyClk(bool terminateAll)
       killpg(getpgrp(),SIGINT);
 }
 
+#endif

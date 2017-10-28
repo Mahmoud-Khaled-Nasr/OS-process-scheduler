@@ -1,4 +1,3 @@
-#pragma once
 #include "clkUtilities.h"
 #include "queueUtilities.h"
 #include <unistd.h>
@@ -57,7 +56,9 @@ int main() {
     //no more processes, send end of transmission message
     sleep(1);
     lastSend();
-    kill(schedulerPid, SIGUSR1);
+    if (algorithm == 2) {
+        kill(schedulerPid, SIGUSR1);
+    }
     printf("send the lastSend\n");
     //the process generator is waiting until the scheduler finishes its work and terminates to clear resources
     int tempPid;

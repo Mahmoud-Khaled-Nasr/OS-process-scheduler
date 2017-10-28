@@ -1,4 +1,5 @@
-#pragma once
+#ifndef __QUEUE_UTILITY_H_INCLUDED__
+#define __QUEUE_UTILITY_H_INCLUDED__
 #include <stdio.h>      //if you don't use scanf/printf change this include
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -118,3 +119,4 @@ void destroyQueueAndExit(int)
 }
 
 
+#endif
