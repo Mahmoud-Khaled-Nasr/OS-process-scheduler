@@ -14,9 +14,11 @@ std::queue <processData> recievedProcesses;
 bool processGeneratorFinish = false;
 pid_t currentProcessId = -1;
 std::priority_queue <processData> processes;
+std::deque<processData> processesRR;
 bool processRunning = false;
 char currentAlgorithm;
 processData previousProcessHPF;
+
 
 //utility functions
 void saveDeadProcessData (processData process);
@@ -34,6 +36,10 @@ void getNewProcessesFromProcessGeneratorHPF();
 void createNewProcessHPF();
 void logNewProcessHPF(processData process);
 void deadChildHandlerHPF(int signal);
+
+//RR functions
+void RRscheduler(int quanta);
+void handlerRR(int);
 
 int main(int argc, char* argv[]) {
 
@@ -63,8 +69,10 @@ int main(int argc, char* argv[]) {
             break;
         }
         case '3': {
-            printf("using RR\n");
-            std::priority_queue<processData> RRQueue;
+            printf("using RR with quanta %d\n", std::atoi(argv[2]));
+            signal(SIGALRM, handlerRR);
+            signal(SIGCHLD, handlerRR);
+            RRscheduler(std::atoi(argv[2]));
             break;
         }
         default: {
@@ -75,6 +83,8 @@ int main(int argc, char* argv[]) {
     return 0;
 }
 
+
+//SRT Function definetions
 void SRTScheduler (){
     //printf("i am before the while time %d\n",getClk());
     while (! processGeneratorFinish || ! recievedProcesses.empty() || ! processes.empty()){
@@ -244,12 +254,13 @@ char* createProcessPrameters (int value){
     return valueParam;
 }
 
-//TODO get the finishing time value when the process ends
+//SRT Function definetions
 void HPFScheduler(){
     while (! processGeneratorFinish || !processes.empty()){
         processData process;
         int result = Recmsg(process);
         if (result == 0) {
+            //hna lma el result btrg3 -1 bardo byfdl fel queue a5er process fel file leeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeh ???????????????
             if (process.id != previousProcessHPF.id) {
                 processes.push(process);
                 previousProcessHPF = process;
@@ -282,7 +293,12 @@ void getNewProcessesFromProcessGeneratorHPF() {
             if (temp.id != previousProcessHPF.id) {
                 printf("received id %d priority %d arr time %d and clk %d \n", temp.id, temp.priority,
                        temp.arrivingTime, getClk());
-                processes.push(temp);
+
+                if(currentAlgorithm=='1'||currentAlgorithm=='2'){
+                    processes.push(temp);
+                }else {
+                    processesRR.push_back(temp);
+                }
                 previousProcessHPF = temp;
             }
         }
@@ -294,8 +310,15 @@ void getNewProcessesFromProcessGeneratorHPF() {
 
 void createNewProcessHPF(){
     processRunning = true;
-    processData temp = processes.top();
-    processes.pop();
+    processData temp;
+    if(currentAlgorithm == '1') {
+        temp = processes.top();
+        processes.pop();
+    }else if(currentAlgorithm == '3')
+    {
+        temp=processesRR.front();
+        processesRR.pop_front();
+    }
     currentProcessId = fork();
     if (currentProcessId == -1 ){
         perror("can't fork new process\n");
@@ -315,10 +338,15 @@ void createNewProcessHPF(){
         }
     }
     temp.processId = currentProcessId;
-    temp.currentUsedAlgo = 1;
     temp.startRunningTime = getClk();
     temp.waitingTime = getClk() - temp.arrivingTime;
-    processes.push(temp);
+    if(currentAlgorithm == '1') {
+        processes.push(temp);
+    }else if(currentAlgorithm =='2'){
+        processes.push(temp);
+    }else {
+        processesRR.push_front(temp);
+    }
     logNewProcessHPF(temp);
     printf("starting new process id %d, priority %d, arr %d, clk %d\n",temp.id,temp.priority,temp.arrivingTime,getClk());
 }
@@ -355,3 +383,103 @@ void deadChildHandlerHPF(int signal) {
     //saveDeadProcessData(process);
 }
 
+//RR functions
+void RRscheduler(int quanta){
+    //alarm(STEP_TIME * quanta);
+    while(!processGeneratorFinish || !processesRR.empty())
+    {
+        processData newProcess;
+        int result=Recmsg(newProcess);
+        if(result==0) {
+            if (newProcess.id != previousProcessHPF.id) {
+                processesRR.push_back(newProcess);
+                previousProcessHPF = newProcess;
+                printf("received id %d priority %d arr time %d and clk %d \n", newProcess.id, newProcess.priority,
+                       newProcess.arrivingTime, getClk());
+            }
+            getNewProcessesFromProcessGeneratorHPF();
+        }
+        else if(result==1)
+        {
+            processGeneratorFinish=true;
+            printf("Last Send \n");
+        }
+
+        if(!processesRR.empty()){
+            //create new process
+            processData temp = processesRR.front();
+            if (temp.processId == -1) {
+                createNewProcessHPF();
+            } else {
+                currentProcessId = temp.processId;
+                temp.startRunningTime = getClk();
+                processesRR.pop_front();
+                processesRR.push_front(temp);
+                kill(temp.processId,SIGCONT);
+                logFile.open(FILE_NAME, std::fstream::app);
+                if (! logFile.is_open()){
+                    printf("can't open the file\n");
+                    exit(1);
+                }
+                logFile << "At time "<< getClk()<< " process " << temp.id << " resumed arr "
+                        << temp.arrivingTime << " total "<< temp.fullRunningTime <<" remain "
+                        << temp.remainingTime <<" wait " << getClk() - temp.arrivingTime << std::endl;
+                logFile.close();
+            }
+            alarm(STEP_TIME*quanta);
+            pause();
+        }
+    }
+}
+
+void handlerRR(int signal) {
+
+    //if(currentProcessId==-1)return;
+
+    processData currentProcess = processesRR.front();
+    int status;
+    if (signal == SIGCHLD) {
+        int triggeredProcessId = waitpid(currentProcessId, &status, WNOHANG);
+        if (triggeredProcessId == currentProcessId) {
+
+            processesRR.pop_front();
+            alarm(0);
+            logFile.open(FILE_NAME, std::fstream::app);
+            if (! logFile.is_open()){
+                printf("can't open log file\n");
+                exit(1);
+            }
+            logFile << "At time " << getClk() << " process " << currentProcess.id << " finished arr "
+                    << currentProcess.arrivingTime << " total " << currentProcess.fullRunningTime << " remain "
+                    << currentProcess.remainingTime << " wait " << currentProcess.waitingTime << std::endl;
+            logFile.close();
+            if (currentProcess.processId != currentProcessId) {
+                printf("killing something wrong queue process id = %d id %d currentProcessId %d\n",
+                       currentProcess.processId,
+                       currentProcess.id,
+                       currentProcessId);
+            } else {
+                printf("I am doing the right thing \n");
+            }
+        }
+    }else if(signal==SIGALRM){
+        logFile.open(FILE_NAME, std::fstream::app);
+        if (! logFile.is_open()){
+            printf("can't open the file\n");
+            exit(1);
+        }
+        currentProcess.remainingTime = currentProcess.remainingTime - (getClk() - currentProcess.startRunningTime);
+        if (currentProcess.remainingTime != 0){
+            processesRR.pop_front();
+            processesRR.push_back(currentProcess);
+            logFile << "At time "<< getClk()<< " process " << currentProcess.id << " stopped arr "
+                    << currentProcess.arrivingTime << " total "<< currentProcess.fullRunningTime <<" remain "
+                    << currentProcess.remainingTime <<" wait " << currentProcess.waitingTime << std::endl;
+            logFile.close();
+            currentProcessId=-1;
+            kill(currentProcessId, SIGTSTP);
+        }
+
+    }
+
+}

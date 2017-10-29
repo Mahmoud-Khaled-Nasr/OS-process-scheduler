@@ -5,14 +5,16 @@
 #include <fstream>
 #include <queue>
 #include <string>
+#include <cstring>
 
 //can't put it anywhere else :)
 std::queue <processData> processes;
 
 void ClearResources(int);
 int readAlgorithmFromUser ();
+int readQuanta();
 pid_t createClk ();
-pid_t createScheduler(int algorithm);
+pid_t createScheduler(int algorithm, int quanta);
 void readProcessFile (char* fileName, int algorithm);
 
 int main() {
@@ -20,9 +22,13 @@ int main() {
     initQueue(true);
     // 1-Ask the user about the chosen scheduling Algorithm and its parameters if exists.
     int algorithm = readAlgorithmFromUser();
+    int quanta;
+    if (algorithm==3){
+        quanta = readQuanta();
+    }
     // 2-Initiate and create Scheduler and Clock processes.
     pid_t clkPid = createClk();
-    pid_t schedulerPid = createScheduler(algorithm);
+    pid_t schedulerPid = createScheduler(algorithm, quanta);
     // 3-use this function AFTER creating clock process to initialize clock, and initialize MsgQueue
     initClk();
     //4-Creating a data structure for process  and  provide it with its parameters
@@ -85,6 +91,14 @@ int readAlgorithmFromUser (){
     do {
         scanf("%d", &algorithm);
     }while (algorithm <1 || algorithm >3);
+    return algorithm;
+}
+
+int readQuanta(){
+    int quanta;
+    printf("enter the quanta\n");
+    scanf("%d",&quanta);
+    return quanta;
 }
 
 pid_t createClk (){
@@ -106,14 +120,20 @@ pid_t createClk (){
     return clkPid;
 }
 
-pid_t createScheduler(int algorithm){
+pid_t createScheduler(int algorithm, int quanta){
     pid_t schedulerPid = fork();
     if (schedulerPid == -1) {
         perror("failed to create scheduler fork");
     } else if (schedulerPid == 0) {
         char algoChar = algorithm + '0';
         char algorithmParam [] = {algoChar,NULL};
-        char *parms[] = {"scheduler.out\0",algorithmParam,NULL};
+
+        std::string valueString = std::to_string(quanta);
+        char* valueParam = new char [valueString.length()+1];
+        std::strcpy(valueParam,valueString.c_str());
+        valueParam[valueString.length()]='\0';
+
+        char *parms[] = {"scheduler.out\0",algorithmParam, valueParam, NULL};
         printf("creating scheduler process\n");
         int result = 0;
         result = execvp("./scheduler.out", parms);
