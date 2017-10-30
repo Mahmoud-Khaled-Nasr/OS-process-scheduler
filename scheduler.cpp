@@ -293,7 +293,6 @@ void getNewProcessesFromProcessGeneratorHPF() {
             if (temp.id != previousProcessHPF.id) {
                 printf("received id %d priority %d arr time %d and clk %d \n", temp.id, temp.priority,
                        temp.arrivingTime, getClk());
-
                 if(currentAlgorithm=='1'||currentAlgorithm=='2'){
                     processes.push(temp);
                 }else {
@@ -316,8 +315,8 @@ void createNewProcessHPF(){
         processes.pop();
     }else if(currentAlgorithm == '3')
     {
-        temp=processesRR.front();
-        processesRR.pop_front();
+        temp = processesRR.front();
+        //processesRR.pop_front();
     }
     currentProcessId = fork();
     if (currentProcessId == -1 ){
@@ -345,7 +344,8 @@ void createNewProcessHPF(){
     }else if(currentAlgorithm =='2'){
         processes.push(temp);
     }else {
-        processesRR.push_front(temp);
+        //Testing reference
+        //processesRR.push_front(temp);
     }
     logNewProcessHPF(temp);
     printf("starting new process id %d, priority %d, arr %d, clk %d\n",temp.id,temp.priority,temp.arrivingTime,getClk());
@@ -390,7 +390,7 @@ void RRscheduler(int quanta){
     {
         processData newProcess;
         int result=Recmsg(newProcess);
-        if(result==0) {
+        if(result == 0) {
             if (newProcess.id != previousProcessHPF.id) {
                 processesRR.push_back(newProcess);
                 previousProcessHPF = newProcess;
@@ -398,24 +398,22 @@ void RRscheduler(int quanta){
                        newProcess.arrivingTime, getClk());
             }
             getNewProcessesFromProcessGeneratorHPF();
-        }
-        else if(result==1)
-        {
+        }else if(result == 1) {
             processGeneratorFinish=true;
-            printf("Last Send \n");
+            printf("lastSend recieved \n");
         }
 
         if(!processesRR.empty()){
             //create new process
-            processData temp = processesRR.front();
+            processData temp (processesRR.front());
             if (temp.processId == -1) {
                 createNewProcessHPF();
             } else {
+                kill(currentProcessId,SIGCONT);
                 currentProcessId = temp.processId;
                 temp.startRunningTime = getClk();
                 processesRR.pop_front();
                 processesRR.push_front(temp);
-                kill(temp.processId,SIGCONT);
                 logFile.open(FILE_NAME, std::fstream::app);
                 if (! logFile.is_open()){
                     printf("can't open the file\n");
@@ -441,8 +439,6 @@ void handlerRR(int signal) {
     if (signal == SIGCHLD) {
         int triggeredProcessId = waitpid(currentProcessId, &status, WNOHANG);
         if (triggeredProcessId == currentProcessId) {
-
-            processesRR.pop_front();
             alarm(0);
             logFile.open(FILE_NAME, std::fstream::app);
             if (! logFile.is_open()){
@@ -461,6 +457,9 @@ void handlerRR(int signal) {
             } else {
                 printf("I am doing the right thing \n");
             }
+            processesRR.pop_front();
+        } else{
+            printf("the child is either stopping or cont\n");
         }
     }else if(signal==SIGALRM){
         logFile.open(FILE_NAME, std::fstream::app);
@@ -470,14 +469,17 @@ void handlerRR(int signal) {
         }
         currentProcess.remainingTime = currentProcess.remainingTime - (getClk() - currentProcess.startRunningTime);
         if (currentProcess.remainingTime != 0){
-            processesRR.pop_front();
             processesRR.push_back(currentProcess);
+            processesRR.pop_front();
+            currentProcess = processesRR.back();
             logFile << "At time "<< getClk()<< " process " << currentProcess.id << " stopped arr "
                     << currentProcess.arrivingTime << " total "<< currentProcess.fullRunningTime <<" remain "
                     << currentProcess.remainingTime <<" wait " << currentProcess.waitingTime << std::endl;
             logFile.close();
-            currentProcessId=-1;
             kill(currentProcessId, SIGTSTP);
+            currentProcessId=-1;
+        }else {
+            printf("this process should be killed not stopped\n");
         }
 
     }

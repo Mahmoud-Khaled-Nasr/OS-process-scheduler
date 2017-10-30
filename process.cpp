@@ -25,7 +25,7 @@ int main(int agrc, char* argv[]) {
     arrivingTime= std::atoi(argv[3]);
     fullRunningTime= std::atoi(argv[4]);
     waitingTime = std::atoi(argv[5]);
-    printf("process of id %d remaining time is %d\n", id, remainingtime);
+    printf("process of id %d remaining time is %d is starting\n", id, remainingtime);
     while(remainingtime>0) {
        sleep(STEP_TIME);
        remainingtime--;
@@ -37,5 +37,5 @@ int main(int agrc, char* argv[]) {
 }
 
 void stopHandler(int signal) {
-    printf("i am %d stoping\n", id);
+    printf("i am %d  with remaining time %d\n", id, remainingtime);
 }
