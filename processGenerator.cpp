@@ -48,11 +48,12 @@ int main() {
                     sendMassage = true;
                 }
             } else {
+                //In SRT which is premitive algorithm any new process should be checked upon arrival
+                //a signal is sent to the scheduler as a notification and interrupt upon arrival of new processes
                 if (algorithm == 2 && sendMassage) {
                     sendMassage = false;
                     kill(schedulerPid, SIGUSR1);
-                    printf("send the receive signal at %d\n",x);
-                    sleep(1);
+                    sleep(0.5);
                 }
                 break;
             }
@@ -88,6 +89,7 @@ void ClearResources(int)
     exit(0);
 }
 
+//Read teh chosen algorithm from the user
 int readAlgorithmFromUser (){
     printf("Please choose an algorithm\n 1- HPF\n 2- Shortest Remaining Time First\n 3- Round Robin\n");
     int algorithm;
@@ -97,6 +99,7 @@ int readAlgorithmFromUser (){
     return algorithm;
 }
 
+//Read the quanta if the algorithm is RR
 int readQuanta(){
     int quanta;
     printf("enter the quanta\n");
@@ -104,6 +107,7 @@ int readQuanta(){
     return quanta;
 }
 
+//Forking the clk
 pid_t createClk (){
     pid_t clkPid = fork();
     if (clkPid == -1) {
@@ -123,6 +127,7 @@ pid_t createClk (){
     return clkPid;
 }
 
+//Forking the scheduler
 pid_t createScheduler(int algorithm, int quanta){
     pid_t schedulerPid = fork();
     if (schedulerPid == -1) {
@@ -148,6 +153,7 @@ pid_t createScheduler(int algorithm, int quanta){
     }
 }
 
+//Read and intialize the Process queue
 void readProcessFile (char* fileName, int algorihtm){
     std::ifstream input;
     input.open(fileName);
@@ -168,14 +174,6 @@ void readProcessFile (char* fileName, int algorihtm){
         input >> arrivalTime >> fullRunTime>>priority;
         processes.push(processData(id,priority,arrivalTime,fullRunTime, fullRunTime,-1,-1,algorihtm));
     }
-    //FOR TEST
-    /*int length = processes.size();
-    for (int i = 0; i < length; ++i) {
-        processData temp = processes.front();
-        processes.pop();
-        printf("id %d arr %d\n",temp.id, temp.arrivingTime);
-        processes.push(temp);
-    }*/
 }
 
 

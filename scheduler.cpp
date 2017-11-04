@@ -12,20 +12,27 @@
 #define FILE_NAME "scheduler.log"
 #define STATISTIC_FILE_NAME "scheduler.perf"
 
+//The log file stream
 std::ofstream logFile;
+//Temp queue to recieve the processes in the signal handler to avoid confilct in the signal handler of SRT
 std::queue <processData> recievedProcesses;
+//booleam = true if the lastSend function is triggered in the processGenerator
 bool processGeneratorFinish = false;
+//The process id in action either by running or stopping
 pid_t currentProcessId = -1;
+//The ready queue of both SRT and HPF because they are have to be sorted
 std::priority_queue <processData> processes;
+//The ready queue of RR because of double insertion needed for updating process struct data
 std::deque<processData> processesRR;
-bool processRunning = false;
+//Char representing the current used algorithm
 char currentAlgorithm;
+//Temp variable to check for redundant insertion in the ready queue
 processData previousAddedProcess;
 //For statistics
 int totalTurnAroundTime =0, totalWaitingTime=0, finalFinishTime, totalNumberOfProcesses = 0;
 double totalWeightedTurnAroundTime=0;
+//Vector to store the WTA of all the processes
 std::vector<double>WTAOfAllProcesses;
-
 
 //utility functions
 void saveDeadProcessData (processData process);
@@ -37,7 +44,7 @@ void logStoppedProcess (processData process);
 void printStatistics ();
 
 //SRT functions
-void newProcessHandlerSRT(int signal);
+void processGeneratorSignalHandlerSRT(int signal);
 void SRTScheduler ();
 void createNewProcessSRT();
 void deadProcessHandlerSRT(int signal);
@@ -74,7 +81,7 @@ int main(int argc, char* argv[]) {
         }
         case '2': {
             printf("using shortest time remainder\n");
-            signal(SIGUSR1, newProcessHandlerSRT);
+            signal(SIGUSR1, processGeneratorSignalHandlerSRT);
             signal(SIGCHLD, deadProcessHandlerSRT);
             SRTScheduler();
             break;
@@ -154,20 +161,13 @@ void deadProcessHandlerSRT(int signal) {
             printf("killing something wrong queue process id = %d id %d currentProcessId %d\n", temp.processId,
                    temp.id,
                    currentProcessId);
-        } else {
-            printf("I am doing the right thing \n");
         }
         temp.finsihTime = getClk();
         temp.remainingTime = 0;
         logFinishedProcess(temp);
         saveDeadProcessData(temp);
         currentProcessId = -1;
-    } else if (triggeredProcessId == 0) {
-        printf("the process id %d %d stopped or resummed \n", processes.top().id, currentProcessId);
-    } else {
-        printf("something is wrong in the deadhandler %d\n", triggeredProcessId);
     }
-
 }
 
 ////Fork and exec the new process with the proper parameters
@@ -178,7 +178,6 @@ void createNewProcessSRT(){
     if (currentProcessId == -1 ){
         perror("can't fork new process\n");
     }else if (currentProcessId == 0){
-        //TODO send the parameters to the process
         char* remainingTimeParam = createProcessPrameters(temp.remainingTime);
         char* idParam = createProcessPrameters(temp.id);
         char* arrivingTimeParam =createProcessPrameters(temp.arrivingTime);
@@ -198,19 +197,16 @@ void createNewProcessSRT(){
 
 ////The handler of SIGURS1 sent by the process generator as a signal after adding new process to the shared queue
 ////And stop the current running process and save its status and update it in the process queue
-void newProcessHandlerSRT(int signal){
+void processGeneratorSignalHandlerSRT(int signal){
     processData temp;
-    printf("starting the new process handler\n");
     int result=2;
     do {
         if (result == -1) {
-            printf("Can't recieve massage for process generator or no massages to be received\n");
         } else if (result == 1) {
             processGeneratorFinish = true;
             printf("lastSend recieved\n");
         } else if (result == 0 && ! processGeneratorFinish) {
             recievedProcesses.push(temp);
-            printf("received id %d arr time %d and clk %d\n", temp.id, temp.arrivingTime, getClk());
             if (currentProcessId != -1) {
                 kill(currentProcessId, SIGSTOP);
                 processData temp = processes.top();
@@ -219,7 +215,6 @@ void newProcessHandlerSRT(int signal){
                 temp.finsihTime = getClk();
                 processes.push(temp);
                 logStoppedProcess(temp);
-                processRunning = false;
                 currentProcessId = -1;
             }
         }
@@ -239,8 +234,6 @@ void HPFScheduler(){
             if (process.id != previousAddedProcess.id) {
                 processes.push(process);
                 previousAddedProcess = process;
-                printf("received id %d priority %d arr time %d and clk %d \n", process.id, process.priority,
-                       process.arrivingTime, getClk());
             }
             getNewProcessesFromProcessGenerator();
         } else if (result == 1){
@@ -257,7 +250,6 @@ void HPFScheduler(){
 ////Add the new processes to the ready queue
 void getNewProcessesFromProcessGenerator() {
     processData temp;
-    printf("starting the new process handler\n");
     int result=2;
     do {
         if (result == -1) {
@@ -267,8 +259,6 @@ void getNewProcessesFromProcessGenerator() {
             printf("lastSend recieved\n");
         } else if (result == 0 && ! processGeneratorFinish) {
             if (temp.id != previousAddedProcess.id) {
-                printf("received id %d priority %d arr time %d and clk %d \n", temp.id, temp.priority,
-                       temp.arrivingTime, getClk());
                 if(currentAlgorithm=='1'){
                     processes.push(temp);
                 }else {
@@ -279,13 +269,11 @@ void getNewProcessesFromProcessGenerator() {
         }
         result = Recmsg(temp);
     }while (result != -1);
-    printf("ending the new process handler\n");
     return;
 }
 
 ////Fork New processes for both RR and HPF
 void createNewProcess(){
-    processRunning = true;
     processData temp;
     if(currentAlgorithm == '1') {
         temp = processes.top();
@@ -322,16 +310,13 @@ void createNewProcess(){
         processesRR.push_front(temp);
     }
     logNewProcess(temp);
-    printf("starting new process id %d, priority %d, arr %d, clk %d\n",temp.id,temp.priority,temp.arrivingTime,getClk());
 }
 
 ////HPF SIGCHLD Handler
 ////The function remove the finished process from the ready queue and call the log function
 void deadChildHandlerHPF(int signal) {
-    processRunning = false;
     processData process = processes.top();
     processes.pop();
-    printf("process id %d terminated clk %d\n",process.id, getClk());
     process.remainingTime=0;
     process.finsihTime=getClk();
     logFinishedProcess(process);
@@ -343,14 +328,13 @@ void deadChildHandlerHPF(int signal) {
 void RRscheduler(int quanta){
     while(!processGeneratorFinish || !processesRR.empty())
     {
+        //Check for new processes sent by the processGenerator
         processData newProcess;
         int result=Recmsg(newProcess);
         if(result == 0 && !processGeneratorFinish) {
             if (newProcess.id != previousAddedProcess.id) {
                 processesRR.push_back(newProcess);
                 previousAddedProcess = newProcess;
-                printf("received id %d priority %d arr time %d and clk %d \n", newProcess.id, newProcess.priority,
-                       newProcess.arrivingTime, getClk());
             }
             getNewProcessesFromProcessGenerator();
         }else if(result == 1) {
@@ -358,6 +342,7 @@ void RRscheduler(int quanta){
             printf("lastSend recieved \n");
         }
 
+        //Run the process in turn
         if(!processesRR.empty()){
             //create new process
             processData temp = processesRR.front();
@@ -367,7 +352,6 @@ void RRscheduler(int quanta){
             } else {
                 temp = processesRR.front();
                 currentProcessId = temp.processId;
-                printf("process %d is resuming with remainder time %d at %d \n",temp.id ,temp.remainingTime, getClk());
                 kill(currentProcessId,SIGCONT);
                 pause();
                 temp.startRunningTime = getClk();
@@ -389,7 +373,6 @@ void RRscheduler(int quanta){
                         currentProcess.remainingTime - (getClk() - currentProcess.startRunningTime);
                 currentProcess.finsihTime = getClk();
                 logStoppedProcess(currentProcess);
-                printf("the process %d is stopping\n", currentProcess.id);
                 processesRR.pop_front();
                 processesRR.push_back(currentProcess);
             }
@@ -402,7 +385,9 @@ void RRscheduler(int quanta){
 void deadProcessHandlerRR (int signal){
     processData currentProcess = processesRR.front();
     int status;
+    //Check for the reason of the SIGCHLD signal
     int triggeredProcessId = waitpid(currentProcessId, &status, WNOHANG);
+    //The signal is from a terminated process
     if (triggeredProcessId == currentProcessId) {
         alarm(0);
         currentProcess.remainingTime = 0;
@@ -414,12 +399,8 @@ void deadProcessHandlerRR (int signal){
                    currentProcess.processId,
                    currentProcess.id,
                    currentProcessId);
-        } else {
-            printf("I am doing the right thing \n");
         }
         processesRR.pop_front();
-    } else{
-        printf("the child is either stopping or cont\n");
     }
 }
 
