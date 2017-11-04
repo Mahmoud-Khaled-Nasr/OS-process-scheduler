@@ -15,7 +15,7 @@
 #include <fstream>
 
 #define SHKEY 300
-#define STEP_TIME 5
+#define STEP_TIME 3
 
 ///==============================
 //don't mess with this variable//
