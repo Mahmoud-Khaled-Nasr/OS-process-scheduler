@@ -70,7 +70,6 @@ int main(int argc, char* argv[]) {
         case '1': {
             signal(SIGCHLD, deadChildHandlerHPF);
             HPFScheduler();
-            //TODO claculate the calculations
             break;
         }
         case '2': {
@@ -78,12 +77,10 @@ int main(int argc, char* argv[]) {
             signal(SIGUSR1, newProcessHandlerSRT);
             signal(SIGCHLD, deadProcessHandlerSRT);
             SRTScheduler();
-            //TODO claculate the calculations
             break;
         }
         case '3': {
             printf("using RR with quanta %d\n", std::atoi(argv[2]));
-            //signal(SIGALRM, quantaHandlerRR);
             signal(SIGCHLD, deadProcessHandlerRR);
             RRscheduler(std::atoi(argv[2]));
             break;
@@ -102,8 +99,6 @@ int main(int argc, char* argv[]) {
 ////The scheduler main loop
 void SRTScheduler (){
     while (! processGeneratorFinish || ! recievedProcesses.empty() || ! processes.empty()){
-        //FOR TEST
-        printf("i am in the while time %d\n",getClk());
         int processStatus;
         //Add the revieved processes to the queue of processes
         processData lastAddedProcess;
@@ -288,6 +283,7 @@ void getNewProcessesFromProcessGenerator() {
     return;
 }
 
+////Fork New processes for both RR and HPF
 void createNewProcess(){
     processRunning = true;
     processData temp;
@@ -329,6 +325,8 @@ void createNewProcess(){
     printf("starting new process id %d, priority %d, arr %d, clk %d\n",temp.id,temp.priority,temp.arrivingTime,getClk());
 }
 
+////HPF SIGCHLD Handler
+////The function remove the finished process from the ready queue and call the log function
 void deadChildHandlerHPF(int signal) {
     processRunning = false;
     processData process = processes.top();
@@ -341,6 +339,7 @@ void deadChildHandlerHPF(int signal) {
 }
 
 //RR functions
+////The scheduler main loop
 void RRscheduler(int quanta){
     while(!processGeneratorFinish || !processesRR.empty())
     {
@@ -380,33 +379,26 @@ void RRscheduler(int quanta){
             // if the remaining time is less than the quanta don't set the alarm to avoid the condition where the
             // quanta = reamaing time which will cause signal collision between SIGCHLD and SIGALRM which leads to
             // unexpected behaviour
-            if (temp.remainingTime > quanta) {
-                //alarm(STEP_TIME * quanta);
-                //pause();
-                sleep(STEP_TIME * quanta);
+            sleep(STEP_TIME * quanta);
+            if (currentProcessId == processesRR.front().processId) {
                 kill(currentProcessId, SIGSTOP);
                 pause();
                 processData currentProcess = processesRR.front();
                 int status;
-                currentProcess.remainingTime = currentProcess.remainingTime - (getClk() - currentProcess.startRunningTime);
+                currentProcess.remainingTime =
+                        currentProcess.remainingTime - (getClk() - currentProcess.startRunningTime);
                 currentProcess.finsihTime = getClk();
                 logStoppedProcess(currentProcess);
-                printf("the process %d is stopping\n",currentProcess.id);
+                printf("the process %d is stopping\n", currentProcess.id);
                 processesRR.pop_front();
                 processesRR.push_back(currentProcess);
-            } else {
-                //sleep(temp.remainingTime * STEP_TIME);
-                pause();
             }
-            /*if (currentProcessId != -1) {
-                pause();
-            } else {
-                printf("pausing when i shouldn't\n");
-            }*/
         }
     }
 }
 
+////RR SIGCHLD Handler
+////The function remove the finished process from the ready queue and call the log function
 void deadProcessHandlerRR (int signal){
     processData currentProcess = processesRR.front();
     int status;
@@ -429,19 +421,6 @@ void deadProcessHandlerRR (int signal){
     } else{
         printf("the child is either stopping or cont\n");
     }
-}
-
-void quantaHandlerRR (int signal){
-    processData currentProcess = processesRR.front();
-    int status;
-    currentProcess.remainingTime = currentProcess.remainingTime - (getClk() - currentProcess.startRunningTime);
-    currentProcess.finsihTime=getClk();
-    processesRR.pop_front();
-    processesRR.push_back(currentProcess);
-    logStoppedProcess(currentProcess);
-    printf("the process %d is stopping\n",currentProcess.id);
-    kill(currentProcessId, SIGSTOP);
-    //currentProcessId=-1;
 }
 
 ////Utility function to create the parameters sent to the new process
@@ -475,6 +454,7 @@ void logNewProcess(processData process) {
     logFile.close();
 }
 
+////Utility function to Log the finished processes and calculate TA and WTA
 void logFinishedProcess (processData process){
     int TA = process.finsihTime - process.arrivingTime;
     double WTA = TA / (double) process.fullRunningTime;
@@ -492,6 +472,7 @@ void logFinishedProcess (processData process){
     logFile.close();
 }
 
+////Utility function to log the updated processes
 void logResumedProcess (processData process){
     logFile.open(FILE_NAME, std::fstream::app);
     if (! logFile.is_open()){
@@ -504,6 +485,7 @@ void logResumedProcess (processData process){
     logFile.close();
 }
 
+////Utility function to log the stopped processes
 void logStoppedProcess (processData process){
     logFile.open(FILE_NAME, std::fstream::app);
     if (! logFile.is_open()){
@@ -516,6 +498,7 @@ void logStoppedProcess (processData process){
     logFile.close();
 }
 
+//Print amd calculate the final statistics
 void printStatistics (){
     printf("writing Statistics\n");
     double AvgWTA = totalWeightedTurnAroundTime/totalNumberOfProcesses;

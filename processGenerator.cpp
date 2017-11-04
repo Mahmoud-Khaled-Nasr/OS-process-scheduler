@@ -60,7 +60,10 @@ int main() {
     }
 
     //no more processes, send end of transmission message
-    sleep(0.5);
+    int previousClk=getClk(), currentClk=getClk();
+    while (previousClk == currentClk){
+        currentClk = getClk();
+    }
     lastSend();
     if (algorithm == 2) {
         kill(schedulerPid, SIGUSR1);
