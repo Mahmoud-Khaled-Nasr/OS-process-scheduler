@@ -23,7 +23,7 @@ processData previousProcessHPF;
 //utility functions
 void saveDeadProcessData (processData process);
 char* createProcessPrameters (int value);
-
+int getSysClk ();
 //SRT functions
 void newProcessHandlerSRT(int signal);
 void SRTScheduler ();
@@ -125,7 +125,6 @@ void SRTScheduler (){
                 temp.startRunningTime = getClk();
                 processes.pop();
                 processes.push(temp);
-                kill(currentProcessId,SIGCONT);
                 logFile.open(FILE_NAME, std::fstream::app);
                 if (! logFile.is_open()){
                     printf("can't open the file\n");
@@ -135,6 +134,7 @@ void SRTScheduler (){
                         << temp.arrivingTime << " total "<< temp.fullRunningTime <<" remain "
                         << temp.remainingTime <<" wait " << getClk() - temp.arrivingTime << std::endl;
                 logFile.close();
+                kill(currentProcessId,SIGCONT);
             }
         }
         if (! processGeneratorFinish || ! recievedProcesses.empty() || ! processes.empty())
@@ -223,7 +223,7 @@ void newProcessHandlerSRT(int signal){
             recievedProcesses.push(temp);
             printf("received id %d arr time %d and clk %d\n", temp.id, temp.arrivingTime, getClk());
             if (currentProcessId != -1) {
-                kill(currentProcessId, SIGTSTP);
+                kill(currentProcessId, SIGSTOP);
                 processData temp = processes.top();
                 processes.pop();
                 logFile.open(FILE_NAME, std::fstream::app);
@@ -484,4 +484,8 @@ void handlerRR(int signal) {
 
     }
 
+}
+
+int getSysClk (){
+    return getClk();
 }
