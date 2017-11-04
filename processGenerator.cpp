@@ -60,9 +60,9 @@ int main() {
     }
 
     //no more processes, send end of transmission message
-    sleep(1);
     lastSend();
     if (algorithm == 2) {
+        sleep(1);
         kill(schedulerPid, SIGUSR1);
     }
     printf("send the lastSend\n");
